@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use std::mem::size_of;
 
-declare_id!("ATqV2MQZsDvB9Z2R9DfxBb1Lmi82oiymhHESV7jpeVkG");
+declare_id!("5NqrbSvLvB52Y54UwXnavjY6o1uwgmNDKfpAhsEdVtWp");
 
 #[program]
 pub mod paytweet {
