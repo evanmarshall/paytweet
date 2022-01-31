@@ -35,8 +35,8 @@ describe('paytweet', () => {
     const airdropAmount = 420000000000; // Should be more than amount
     const twitterId = new anchor.BN(474429261); // @coralrelief
     const matchingText = '@DemoxLabs';
-    const uuidNumber = Math.floor(Math.random() * 2**50);
-    const uuid = Buffer.from(String(uuidNumber));
+    let uuidNumber = Math.floor(Math.random() * 2**50);
+    let uuid = Buffer.from(String(uuidNumber));
     let vaultAccount, vaultBump;
 
     anchor.setProvider(provider);
@@ -126,6 +126,77 @@ describe('paytweet', () => {
 
         assert(initiatorBalance < airdropAmount - amount.toNumber());
         assert(recipientBalance = airdropAmount + amount.toNumber() - 2 * 5000); // account for transaction cost
+        assert(vaultBalance == 0);
+    });
+
+    it('Can create second vault', async () => {
+        uuidNumber = Math.floor(Math.random() * 2**50);
+        uuid = Buffer.from(String(uuidNumber));
+
+        [vaultAccount, vaultBump] = await anchor.web3.PublicKey.findProgramAddress(
+            [Buffer.from("vault-seed"), initiatorKeyPair.publicKey.toBuffer(), uuid],
+            program.programId
+            );
+        console.log('Vault account: ', vaultAccount.toString());
+
+        let buff = Buffer.alloc(256);
+        buff.fill(matchingText);
+        await provider.connection.confirmTransaction(
+            await program.rpc.create(
+                vaultBump,
+                new anchor.BN(uuidNumber),
+                amount,
+                twitterId,
+                buff,
+                {
+                    accounts: {
+                        initiator: initiatorKeyPair.publicKey,
+                        vault: vaultAccount,
+                        oracle: oraclePubkey,
+                        rent: anchor.web3.SYSVAR_RENT_PUBKEY,
+                        systemProgram: anchor.web3.SystemProgram.programId,
+                    },
+                    signers: [initiatorKeyPair],
+                }
+            ),
+            "confirmed"
+        );
+
+        let initiatorBalance = await getBalance(provider, initiatorKeyPair.publicKey);
+        let vaultBalance = await getBalance(provider, vaultAccount);
+
+        console.log('initiator Balance: ', initiatorBalance);
+        console.log('vault Balance: ', vaultBalance);
+
+        assert(initiatorBalance < airdropAmount - amount.toNumber());
+        assert(vaultBalance >= amount.toNumber());
+    });
+    
+    it('Can create second vault', async () => {
+        let startInitiatorBalance = await getBalance(provider, initiatorKeyPair.publicKey);
+
+        await provider.connection.confirmTransaction(
+            await program.rpc.cancel(
+                twitterId,
+                {
+                    accounts: {
+                        initiator: initiatorKeyPair.publicKey,
+                        vault: vaultAccount,
+                        systemProgram: anchor.web3.SystemProgram.programId,
+                    },
+                    signers: [initiatorKeyPair],
+                }
+            ),
+            "confirmed"
+        );
+
+        let initiatorBalance = await getBalance(provider, initiatorKeyPair.publicKey);
+        let vaultBalance = await getBalance(provider, vaultAccount);
+
+        console.log('initiator Balance: ', initiatorBalance);
+        console.log('vault Balance: ', vaultBalance);
+
+        assert((initiatorBalance - startInitiatorBalance) > amount.toNumber());
         assert(vaultBalance == 0);
     });
 });
